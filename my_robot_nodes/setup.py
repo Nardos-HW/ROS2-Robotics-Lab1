@@ -1,3 +1,6 @@
+from glob import glob
+import os
+
 from setuptools import find_packages, setup
 
 package_name = 'my_robot_nodes'
@@ -10,6 +13,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'),
+            glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
     ],
     package_data={'': ['py.typed']},
     install_requires=['setuptools'],
@@ -27,6 +32,7 @@ setup(
         'console_scripts': [
             'turn_away = my_robot_nodes.turn_away:main',
             'rotate_server = my_robot_nodes.rotate_server:main',
+            'square_driver = my_robot_nodes.square_driver:main',
         ],
     },
 )
