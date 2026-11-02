@@ -37,7 +37,7 @@ class SquareDriver(Node):
         del msg
         self.odom_received = True
 
-    def wait_for_servers(self, timeout_sec: float = 30.0) -> bool:
+    def wait_for_servers(self, timeout_sec: float = 90.0) -> bool:
         """Wait for action servers and odometry to become available."""
         self.get_logger().info('Waiting for drive_distance action server...')
         if not self.drive_client.wait_for_server(timeout_sec=timeout_sec):
@@ -104,10 +104,15 @@ class SquareDriver(Node):
         rclpy.spin_until_future_complete(self, result_future)
         wrapped_result = result_future.result()
 
-        if wrapped_result.status != GoalStatus.STATUS_SUCCEEDED:
+        if wrapped_result is None or wrapped_result.status != GoalStatus.STATUS_SUCCEEDED:
+            status_code = wrapped_result.status if wrapped_result is not None else 'unknown'
             self.get_logger().error(
-                f'Drive goal failed with status code {wrapped_result.status}'
+                f'Drive goal failed with status code {status_code}'
             )
+            return False
+
+        if wrapped_result.result is None:
+            self.get_logger().error('Drive goal result is None')
             return False
 
         self.get_logger().info(
@@ -147,10 +152,15 @@ class SquareDriver(Node):
         rclpy.spin_until_future_complete(self, result_future)
         wrapped_result = result_future.result()
 
-        if wrapped_result.status != GoalStatus.STATUS_SUCCEEDED:
+        if wrapped_result is None or wrapped_result.status != GoalStatus.STATUS_SUCCEEDED:
+            status_code = wrapped_result.status if wrapped_result is not None else 'unknown'
             self.get_logger().error(
-                f'Rotate goal failed with status code {wrapped_result.status}'
+                f'Rotate goal failed with status code {status_code}'
             )
+            return False
+
+        if wrapped_result.result is None:
+            self.get_logger().error('Rotate goal result is None')
             return False
 
         self.get_logger().info(
