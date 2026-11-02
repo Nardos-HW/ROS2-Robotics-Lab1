@@ -13,6 +13,9 @@ class TurnAway(Node):
 
     def __init__(self):
         super().__init__('turn_away')
+        self.declare_parameter('forward_speed', 0.2)
+        self.declare_parameter('turn_speed', 0.5)
+
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.obstacle_sub = self.create_subscription(
             ObstacleInfo, '/obstacle', self.on_obstacle, 10
@@ -20,25 +23,28 @@ class TurnAway(Node):
         self.get_logger().info('turn_away node started')
 
     def on_obstacle(self, msg: ObstacleInfo) -> None:
+        forward_speed = float(self.get_parameter('forward_speed').value)
+        turn_speed = float(self.get_parameter('turn_speed').value)
+
         twist = Twist()
 
         if not msg.too_close:
-            twist.linear.x = 0.2
+            twist.linear.x = forward_speed
             twist.angular.z = 0.0
-            self.get_logger().info('Driving forward at 0.2 m/s')
+            self.get_logger().info(f'Driving forward at {forward_speed:.2f} m/s')
         else:
             twist.linear.x = 0.0
             if msg.angle > 0.0:
-                twist.angular.z = -0.5
+                twist.angular.z = -turn_speed
                 self.get_logger().info(
                     f'Obstacle too close ({msg.distance:.2f} m, angle {msg.angle:.2f} rad): '
-                    'turning right at -0.5 rad/s'
+                    f'turning right at {-turn_speed:.2f} rad/s'
                 )
             else:
-                twist.angular.z = 0.5
+                twist.angular.z = turn_speed
                 self.get_logger().info(
                     f'Obstacle too close ({msg.distance:.2f} m, angle {msg.angle:.2f} rad): '
-                    'turning left at 0.5 rad/s'
+                    f'turning left at {turn_speed:.2f} rad/s'
                 )
 
         self.cmd_vel_pub.publish(twist)
