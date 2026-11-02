@@ -61,6 +61,10 @@ class RotateServer(Node):
             self.get_logger().warning(f'Rejecting goal with invalid angle: {angle}')
             return GoalResponse.REJECT
         if self.yaw is None:
+            start_time = time.time()
+            while self.yaw is None and (time.time() - start_time) < 5.0:
+                time.sleep(0.05)
+        if self.yaw is None:
             self.get_logger().warning('Rejecting goal: odometry not yet received')
             return GoalResponse.REJECT
         return GoalResponse.ACCEPT

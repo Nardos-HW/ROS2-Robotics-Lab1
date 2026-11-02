@@ -11,6 +11,12 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(PROGRAMS
+  scripts/obstacle_detector.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME obstacle_detector
+)
+
 install(DIRECTORY
   config
   launch

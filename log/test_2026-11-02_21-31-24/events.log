@@ -1,0 +1,10 @@
+[0.000000] (-) TimerEvent: {}
+[0.001077] (my_robot_interfaces) JobQueued: {'identifier': 'my_robot_interfaces', 'dependencies': OrderedDict({'my_robot_interfaces': '/home/el_roi/ros2_ws/src/lab1_exercise/install/my_robot_interfaces'})}
+[0.003672] (my_robot_nodes) JobQueued: {'identifier': 'my_robot_nodes', 'dependencies': OrderedDict({'lab_interfaces': '/home/el_roi/ros2_ws/src/lab1_exercise/install/lab_interfaces', 'my_robot_interfaces': '/home/el_roi/ros2_ws/src/lab1_exercise/install/my_robot_interfaces', 'my_robot_nodes': '/home/el_roi/ros2_ws/src/lab1_exercise/install/my_robot_nodes'})}
+[0.003900] (my_robot_interfaces) JobStarted: {'identifier': 'my_robot_interfaces'}
+[0.053864] (my_robot_interfaces) StderrLine: {'line': b'Traceback (most recent call last):\n  File "/usr/lib/python3/dist-packages/colcon_core/executor/__init__.py", line 91, in __call__\n    rc = await self.task(*args, **kwargs)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/usr/lib/python3/dist-packages/colcon_core/task/__init__.py", line 120, in __call__\n    return await task_method(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/usr/lib/python3/dist-packages/colcon_ros/task/ament_cmake/test.py", line 29, in test\n    return await extension.test()\n           ^^^^^^^^^^^^^^^^^^^^^^\n  File "/usr/lib/python3/dist-packages/colcon_cmake/task/cmake/test.py", line 44, in test\n    assert os.path.exists(args.build_base), \\\n           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\nAssertionError: Has this package been built before?\n'}
+[0.058873] (my_robot_interfaces) JobEnded: {'identifier': 'my_robot_interfaces', 'rc': 1}
+[0.060730] (my_robot_nodes) JobStarted: {'identifier': 'my_robot_nodes'}
+[0.098856] (-) TimerEvent: {}
+[0.156846] (my_robot_nodes) JobEnded: {'identifier': 'my_robot_nodes', 'rc': 1}
+[0.168783] (-) EventReactorShutdown: {}

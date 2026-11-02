@@ -62,7 +62,13 @@ class DriveDistanceServer(Node):
         self.too_close = msg.too_close
 
     def on_goal(self, goal):
-        if goal.distance <= 0.0 or self.position is None:
+        if goal.distance <= 0.0:
+            return GoalResponse.REJECT
+        if self.position is None:
+            start_time = time.time()
+            while self.position is None and (time.time() - start_time) < 5.0:
+                time.sleep(0.05)
+        if self.position is None:
             return GoalResponse.REJECT
         return GoalResponse.ACCEPT
 

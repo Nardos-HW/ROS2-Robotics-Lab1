@@ -2,10 +2,13 @@
 """Action client that drives the robot in a square trajectory."""
 
 import math
+import time
 
 from action_msgs.msg import GoalStatus
+from geometry_msgs.msg import Twist
 from lab_interfaces.action import DriveDistance
 from my_robot_interfaces.action import Rotate
+from nav_msgs.msg import Odometry
 import rclpy
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
@@ -15,17 +18,27 @@ from rclpy.node import Node
 class SquareDriver(Node):
     """Action client executing a 4-side square using drive_distance and rotate."""
 
-    def __init__(self):
-        """Initialize the SquareDriver node and action clients."""
+    def __init__(self) -> None:
+        """Initialize the SquareDriver node, subscriptions, and action clients."""
         super().__init__('square_driver')
         self.declare_parameter('side_length', 0.5)
 
+        self.odom_received = False
+        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.odom_sub = self.create_subscription(
+            Odometry, '/odom', self.on_odom, 10
+        )
         self.drive_client = ActionClient(self, DriveDistance, 'drive_distance')
         self.rotate_client = ActionClient(self, Rotate, 'rotate')
         self.get_logger().info('square_driver node initialized')
 
+    def on_odom(self, msg: Odometry) -> None:
+        """Record receipt of odometry message."""
+        del msg
+        self.odom_received = True
+
     def wait_for_servers(self, timeout_sec: float = 30.0) -> bool:
-        """Wait for drive_distance and rotate action servers to become available."""
+        """Wait for action servers and odometry to become available."""
         self.get_logger().info('Waiting for drive_distance action server...')
         if not self.drive_client.wait_for_server(timeout_sec=timeout_sec):
             self.get_logger().error('drive_distance action server not available')
@@ -37,6 +50,16 @@ class SquareDriver(Node):
             return False
 
         self.get_logger().info('Both action servers are available')
+
+        self.get_logger().info('Waiting for odometry readiness...')
+        start_time = time.time()
+        while not self.odom_received and rclpy.ok():
+            rclpy.spin_once(self, timeout_sec=0.1)
+            if time.time() - start_time > timeout_sec:
+                self.get_logger().error('Timed out waiting for odometry')
+                return False
+
+        self.get_logger().info('Odometry is ready')
         return True
 
     def on_drive_feedback(self, feedback_msg) -> None:
@@ -49,17 +72,29 @@ class SquareDriver(Node):
         turned = feedback_msg.feedback.turned
         self.get_logger().info(f'Rotate feedback: turned {turned:.3f} rad')
 
-    def drive_distance(self, distance: float) -> bool:
+    def drive_distance(self, distance: float, max_retries: int = 5) -> bool:
         """Send drive_distance goal and wait for its completion."""
         goal = DriveDistance.Goal()
         goal.distance = distance
         self.get_logger().info(f'Sending drive goal: {distance:.2f} m')
 
-        send_future = self.drive_client.send_goal_async(
-            goal, feedback_callback=self.on_drive_feedback
-        )
-        rclpy.spin_until_future_complete(self, send_future)
-        goal_handle = send_future.result()
+        goal_handle = None
+        for attempt in range(1, max_retries + 1):
+            send_future = self.drive_client.send_goal_async(
+                goal, feedback_callback=self.on_drive_feedback
+            )
+            rclpy.spin_until_future_complete(self, send_future)
+            goal_handle = send_future.result()
+
+            if goal_handle and goal_handle.accepted:
+                break
+
+            self.get_logger().warning(
+                f'Drive goal was rejected by action server (attempt {attempt}/{max_retries})'
+            )
+            if attempt < max_retries:
+                time.sleep(0.5)
+                rclpy.spin_once(self, timeout_sec=0.1)
 
         if not goal_handle or not goal_handle.accepted:
             self.get_logger().error('Drive goal was rejected by action server')
@@ -80,17 +115,29 @@ class SquareDriver(Node):
         )
         return True
 
-    def rotate(self, angle: float) -> bool:
+    def rotate(self, angle: float, max_retries: int = 5) -> bool:
         """Send rotate goal and wait for its completion."""
         goal = Rotate.Goal()
         goal.angle = angle
         self.get_logger().info(f'Sending rotate goal: {angle:.3f} rad')
 
-        send_future = self.rotate_client.send_goal_async(
-            goal, feedback_callback=self.on_rotate_feedback
-        )
-        rclpy.spin_until_future_complete(self, send_future)
-        goal_handle = send_future.result()
+        goal_handle = None
+        for attempt in range(1, max_retries + 1):
+            send_future = self.rotate_client.send_goal_async(
+                goal, feedback_callback=self.on_rotate_feedback
+            )
+            rclpy.spin_until_future_complete(self, send_future)
+            goal_handle = send_future.result()
+
+            if goal_handle and goal_handle.accepted:
+                break
+
+            self.get_logger().warning(
+                f'Rotate goal was rejected by action server (attempt {attempt}/{max_retries})'
+            )
+            if attempt < max_retries:
+                time.sleep(0.5)
+                rclpy.spin_once(self, timeout_sec=0.1)
 
         if not goal_handle or not goal_handle.accepted:
             self.get_logger().error('Rotate goal was rejected by action server')
@@ -110,6 +157,11 @@ class SquareDriver(Node):
             f'Rotate completed: turned {wrapped_result.result.turned:.3f} rad'
         )
         return True
+
+    def stop(self) -> None:
+        """Publish zero velocity to ensure robot is stopped."""
+        if rclpy.ok():
+            self.cmd_vel_pub.publish(Twist())
 
     def execute_square(self) -> bool:
         """Execute a 4-side square trajectory with four 90-degree left turns."""
@@ -132,6 +184,7 @@ class SquareDriver(Node):
             )
             if not self.drive_distance(side_length):
                 self.get_logger().error(f'Square trajectory failed on side {side}')
+                self.stop()
                 return False
 
             self.get_logger().info(
@@ -139,8 +192,10 @@ class SquareDriver(Node):
             )
             if not self.rotate(turn_angle):
                 self.get_logger().error(f'Square trajectory failed on corner {side}')
+                self.stop()
                 return False
 
+        self.stop()
         self.get_logger().info('Square trajectory completed successfully!')
         return True
 
@@ -155,6 +210,7 @@ def main(args=None):
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        node.stop()
         node.destroy_node()
         rclpy.try_shutdown()
 
