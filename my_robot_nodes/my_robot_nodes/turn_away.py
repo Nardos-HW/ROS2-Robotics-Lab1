@@ -4,9 +4,12 @@
 from geometry_msgs.msg import Twist
 from lab_interfaces.msg import ObstacleInfo
 from my_robot_interfaces.msg import RobotStatus
+from my_robot_interfaces.srv import SetTurnSpeed
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.parameter import Parameter
+from std_srvs.srv import SetBool
 
 
 class TurnAway(Node):
@@ -16,21 +19,76 @@ class TurnAway(Node):
         super().__init__('turn_away')
         self.declare_parameter('forward_speed', 0.2)
         self.declare_parameter('turn_speed', 0.5)
+        self.declare_parameter('max_turn_speed', 1.5)
+
+        self.enabled = False
 
         self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.status_pub = self.create_publisher(RobotStatus, '/robot_status', 10)
         self.obstacle_sub = self.create_subscription(
             ObstacleInfo, '/obstacle', self.on_obstacle, 10
         )
-        self.get_logger().info('turn_away node started')
+        self.enable_srv = self.create_service(
+            SetBool, '/turn_away_enable', self.on_enable
+        )
+        self.turn_speed_srv = self.create_service(
+            SetTurnSpeed, '/set_turn_speed', self.on_set_turn_speed
+        )
+        self.get_logger().info('turn_away node started (disabled)')
+
+    def on_enable(self, request: SetBool.Request, response: SetBool.Response) -> SetBool.Response:
+        """Enable or disable autonomous obstacle avoidance."""
+        if request.data:
+            self.enabled = True
+            response.success = True
+            response.message = 'Node enabled'
+        else:
+            self.enabled = False
+            self.stop()
+            response.success = True
+            response.message = 'Node disabled'
+
+        self.get_logger().info(response.message)
+        return response
+
+    def on_set_turn_speed(
+        self, request: SetTurnSpeed.Request, response: SetTurnSpeed.Response
+    ) -> SetTurnSpeed.Response:
+        """Set the turn_speed parameter within (0, max_turn_speed]."""
+        max_turn_speed = float(self.get_parameter('max_turn_speed').value)
+        speed = float(request.turn_speed)
+
+        if speed <= 0.0:
+            response.success = False
+            response.message = f'turn_speed must be positive, got {speed:.2f}'
+        elif speed > max_turn_speed:
+            response.success = False
+            response.message = (
+                f'turn_speed must not exceed max_turn_speed ({max_turn_speed:.2f}), '
+                f'got {speed:.2f}'
+            )
+        else:
+            self.set_parameters([Parameter('turn_speed', value=speed)])
+            response.success = True
+            response.message = f'turn_speed set to {speed:.2f} rad/s'
+
+        self.get_logger().info(response.message)
+        return response
 
     def on_obstacle(self, msg: ObstacleInfo) -> None:
+        """Process incoming obstacle info and update movement/status."""
+        status = RobotStatus()
+        status.obstacle_distance = float(msg.distance)
+
+        if not self.enabled:
+            status.state = 'stopped'
+            self.status_pub.publish(status)
+            return
+
         forward_speed = float(self.get_parameter('forward_speed').value)
         turn_speed = float(self.get_parameter('turn_speed').value)
 
         twist = Twist()
-        status = RobotStatus()
-        status.obstacle_distance = float(msg.distance)
 
         if not msg.too_close:
             twist.linear.x = forward_speed
